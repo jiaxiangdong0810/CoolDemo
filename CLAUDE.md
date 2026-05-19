@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **项目指令**：本项目不使用 superpowers 技能。不自动调用 brainstorming、writing-plans、test-driven-development、systematic-debugging 等流程。直接按用户指令执行，按需简化处理。
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目简介

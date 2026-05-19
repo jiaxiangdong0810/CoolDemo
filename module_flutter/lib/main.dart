@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'pages/model_setup_page.dart';
+import 'services/llama_service.dart';
+
 void main() {
   runApp(const MyApp());
 }
@@ -52,6 +55,26 @@ class FirstFlutterPage extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 40),
+            // 新增：AI 聊天入口
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ModelSetupPage(
+                      llamaService: LlamaService(),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat_bubble),
+              label: const Text('本地 AI 聊天'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.of(context).push(

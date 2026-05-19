@@ -4,6 +4,7 @@
 .idea/
 .claude/
 .kotlin/
+LLM/
 .DS_Store
 /build
 /captures
