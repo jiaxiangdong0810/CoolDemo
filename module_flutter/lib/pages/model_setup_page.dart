@@ -39,11 +39,11 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   }
 
   Future<void> _checkModel() async {
-    Log.i('开始检查模型: $_defaultModelName');
+    LogByCommon.d('开始检查模型: $_defaultModelName');
     try {
       final hasModel = await _modelManager.isModelAvailable(_defaultModelName);
       final modelPath = hasModel ? await _modelManager.getModelPath(_defaultModelName) : null;
-      Log.i('模型检查结果 — hasModel=$hasModel, path=$modelPath');
+      LogByCommon.d('模型检查结果 — hasModel=$hasModel, path=$modelPath');
 
       setState(() {
         _isLoading = false;
@@ -51,7 +51,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
         _modelPath = modelPath;
       });
     } catch (e, stack) {
-      Log.e('检查模型失败', error: e, stackTrace: stack);
+      LogByCommon.d('检查模型失败', error: e, stackTrace: stack);
       setState(() {
         _isLoading = false;
         _hasModel = false;
@@ -66,13 +66,13 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
 
   Future<void> _loadModelAndNavigate() async {
     setState(() => _isLoading = true);
-    Log.i('开始加载模型...');
+    LogByCommon.d('开始加载模型...');
 
     try {
       final modelPath = await _modelManager.getModelPath(_defaultModelName);
-      Log.i('模型路径: $modelPath');
+      LogByCommon.d('模型路径: $modelPath');
       await widget.llamaService.loadModel(modelPath);
-      Log.i('模型加载成功，进入聊天页');
+      LogByCommon.d('模型加载成功，进入聊天页');
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -84,7 +84,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
         );
       }
     } catch (e, stack) {
-      Log.e('模型加载失败', error: e, stackTrace: stack);
+      LogByCommon.d('模型加载失败', error: e, stackTrace: stack);
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -99,22 +99,22 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
       _isDownloading = true;
       _downloadProgress = const DownloadProgress(status: DownloadStatus.downloading);
     });
-    Log.i('开始下载模型: $_defaultModelUrl');
+    LogByCommon.d('开始下载模型: $_defaultModelUrl');
 
     final path = await _modelManager.downloadModel(
       _defaultModelUrl,
       _defaultModelName,
       onProgress: (progress) {
         setState(() => _downloadProgress = progress);
-        Log.d('下载进度: ${(progress.progress * 100).toStringAsFixed(1)}%');
+        LogByCommon.d('下载进度: ${(progress.progress * 100).toStringAsFixed(1)}%');
       },
     );
 
     if (path != null && mounted) {
-      Log.i('模型下载完成: $path');
+      LogByCommon.d('模型下载完成: $path');
       _loadModelAndNavigate();
     } else if (mounted) {
-      Log.e('模型下载失败');
+      LogByCommon.d('模型下载失败');
       setState(() => _isDownloading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('下载失败，请检查网络后重试')),
@@ -130,7 +130,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
       );
 
       if (result == null || result.files.isEmpty) {
-        Log.i('用户取消选择文件');
+        LogByCommon.d('用户取消选择文件');
         return;
       }
 
@@ -148,19 +148,19 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
         _isImporting = true;
         _importProgress = 0.0;
       });
-      Log.i('开始导入模型: $filePath');
+      LogByCommon.d('开始导入模型: $filePath');
 
       final importedPath = await _modelManager.importModel(
         filePath,
         targetName: _defaultModelName,
         onProgress: (progress) {
           setState(() => _importProgress = progress);
-          Log.d('导入进度: ${(progress * 100).toStringAsFixed(1)}%');
+          LogByCommon.d('导入进度: ${(progress * 100).toStringAsFixed(1)}%');
         },
       );
 
       if (importedPath != null && mounted) {
-        Log.i('模型导入成功: $importedPath');
+        LogByCommon.d('模型导入成功: $importedPath');
         setState(() {
           _isImporting = false;
           _hasModel = true;
@@ -170,14 +170,14 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
           const SnackBar(content: Text('模型导入成功')),
         );
       } else if (mounted) {
-        Log.e('模型导入失败');
+        LogByCommon.d('模型导入失败');
         setState(() => _isImporting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('导入失败，请检查文件后重试')),
         );
       }
     } catch (e, stack) {
-      Log.e('导入模型异常', error: e, stackTrace: stack);
+      LogByCommon.d('导入模型异常', error: e, stackTrace: stack);
       if (mounted) {
         setState(() => _isImporting = false);
         ScaffoldMessenger.of(context).showSnackBar(

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../prompts/system_prompts.dart';
+import '../utils/log.dart';
 import 'llama_service.dart';
 
 /// 消息角色
@@ -47,7 +49,9 @@ class ChatService extends ChangeNotifier {
   final LlamaService _llamaService;
 
   ChatService({LlamaService? llamaService})
-      : _llamaService = llamaService ?? LlamaService();
+      : _llamaService = llamaService ?? LlamaService() {
+    _systemPrompt = SystemPrompts.defaultQA;
+  }
 
   final List<ChatMessage> _messages = [];
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -96,6 +100,13 @@ class ChatService extends ChangeNotifier {
       // 构建格式化的 prompt
       final prompt = _buildPrompt();
 
+      // 打印用户发送的消息和完整上下文
+      LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      LogByLLM.d('【用户发送】$userMessage');
+      LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      LogByLLM.d('【完整上下文 Prompt】\n$prompt');
+      LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
       // 创建占位助手消息
       final assistantMessage = ChatMessage(
         role: MessageRole.assistant,
@@ -115,6 +126,9 @@ class ChatService extends ChangeNotifier {
             content: buffer.toString(),
           );
           notifyListeners();
+
+          // 打印 LLM 实时生成的 token
+          LogByLLM.d('【LLM Token】$token');
         },
         maxTokens: _maxResponseTokens,
         temperature: 0.7,
@@ -125,6 +139,11 @@ class ChatService extends ChangeNotifier {
         content: buffer.toString(),
         isComplete: true,
       );
+
+      // 打印 LLM 完整回复
+      LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      LogByLLM.d('【LLM 完整回复】${buffer.toString()}');
+      LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (e) {
       // 替换失败的助手消息为错误提示
       if (_messages.isNotEmpty && _messages.last.role == MessageRole.assistant) {

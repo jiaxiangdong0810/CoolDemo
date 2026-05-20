@@ -43,7 +43,7 @@ class ModelManager {
   Future<Directory> _getInternalModelsDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
     final modelsDir = Directory('${appDir.path}/$_modelsDir');
-    Log.d('内部存储目录: ${modelsDir.path}');
+    LogByCommon.d('内部存储目录: ${modelsDir.path}');
     if (!await modelsDir.exists()) {
       await modelsDir.create(recursive: true);
     }
@@ -52,48 +52,48 @@ class ModelManager {
 
   /// 获取模型文件的完整路径（内部存储，大小写不敏感匹配）
   Future<String> getModelPath(String modelName) async {
-    Log.i('getModelPath 查找: $modelName');
+    LogByCommon.d('getModelPath 查找: $modelName');
     final internalDir = await _getInternalModelsDirectory();
     final entities = await internalDir.list().toList();
-    Log.d('内部存储文件数: ${entities.length}');
+    LogByCommon.d('内部存储文件数: ${entities.length}');
     for (final entity in entities) {
       if (entity is File) {
         final name = entity.path.split('/').last;
-        Log.d('  内部文件: $name');
+        LogByCommon.d('  内部文件: $name');
         if (name.toLowerCase() == modelName.toLowerCase()) {
-          Log.i('找到模型: ${entity.path}');
+          LogByCommon.d('找到模型: ${entity.path}');
           return entity.path;
         }
       }
     }
-    Log.w('未找到模型，返回默认路径: ${internalDir.path}/$modelName');
+    LogByCommon.d('未找到模型，返回默认路径: ${internalDir.path}/$modelName');
     return '${internalDir.path}/$modelName';
   }
 
   /// 检查模型是否可用（在内部存储中查找，文件名大小写不敏感）
   Future<bool> isModelAvailable(String modelName) async {
-    Log.i('isModelAvailable 查找: $modelName');
+    LogByCommon.d('isModelAvailable 查找: $modelName');
     final dir = await _getInternalModelsDirectory();
     if (!await dir.exists()) {
-      Log.w('模型不可用: $modelName');
+      LogByCommon.d('模型不可用: $modelName');
       return false;
     }
-    Log.d('扫描目录: ${dir.path}');
+    LogByCommon.d('扫描目录: ${dir.path}');
 
     final entities = await dir.list().toList();
     for (final entity in entities) {
       if (entity is! File) continue;
       final name = entity.path.split('/').last;
       final size = await entity.length();
-      Log.d('  文件: $name, 大小: ${(size / 1024 / 1024).toStringAsFixed(1)} MB');
+      LogByCommon.d('  文件: $name, 大小: ${(size / 1024 / 1024).toStringAsFixed(1)} MB');
       if (name.toLowerCase() == modelName.toLowerCase()) {
         if (size > 1024 * 1024) {
-          Log.i('模型可用: $name');
+          LogByCommon.d('模型可用: $name');
           return true;
         }
       }
     }
-    Log.w('模型不可用: $modelName');
+    LogByCommon.d('模型不可用: $modelName');
     return false;
   }
 
@@ -110,7 +110,7 @@ class ModelManager {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
-        Log.e('源文件不存在: $sourcePath');
+        LogByCommon.d('源文件不存在: $sourcePath');
         return null;
       }
 
@@ -150,14 +150,14 @@ class ModelManager {
       // 校验
       if (!await validateModel(targetPath)) {
         await targetFile.delete();
-        Log.e('导入文件校验失败');
+        LogByCommon.d('导入文件校验失败');
         return null;
       }
 
-      Log.i('模型导入成功: $targetPath');
+      LogByCommon.d('模型导入成功: $targetPath');
       return targetPath;
     } catch (e, stack) {
-      Log.e('导入模型失败', error: e, stackTrace: stack);
+      LogByCommon.d('导入模型失败', error: e, stackTrace: stack);
       return null;
     }
   }
