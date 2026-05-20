@@ -7,10 +7,10 @@
     android:padding="24dp">
 
     <Button
-        android:id="@+id/button_open_ai_chat"
+        android:id="@+id/button_open_features"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="开启AI聊天"
+        android:text="进入功能页面"
         android:textSize="18sp"
         android:paddingHorizontal="32dp"
         android:paddingVertical="16dp"

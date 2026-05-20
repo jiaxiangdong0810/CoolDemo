@@ -1,13 +1,18 @@
-import 'dart:ui' as ui;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'pages/about_page.dart';
+import 'pages/agreement_detail_page.dart';
+import 'pages/agreement_page.dart';
+import 'pages/chat_page.dart';
 import 'pages/model_setup_page.dart';
+import 'pages/settings_page.dart';
 import 'services/llama_service.dart';
 
 void main() {
-  runApp(MyApp(initialRoute: ui.window.defaultRouteName));
+  runApp(MyApp(initialRoute: PlatformDispatcher.instance.defaultRouteName));
 }
 
 class MyApp extends StatelessWidget {
@@ -17,29 +22,56 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool startFromModelSetup = initialRoute == '/model_setup';
-
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: startFromModelSetup
-          ? ModelSetupPage(llamaService: LlamaService())
-          : const FirstFlutterPage(),
+      // 关键：使用 initialRoute + onGenerateRoute，不再同时设置 home
+      // 避免 Navigator 栈中重复压入同一页面（home + initialRoute 冲突）
+      initialRoute: initialRoute,
       onGenerateRoute: (settings) {
         switch (settings.name) {
+          case '/':
+            return MaterialPageRoute(
+              builder: (_) => const FirstFlutterPage(),
+            );
           case '/model_setup':
             return MaterialPageRoute(
               builder: (_) => ModelSetupPage(llamaService: LlamaService()),
+            );
+          case '/chat':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => ChatPage(
+                chatService: args?['chatService'],
+              ),
             );
           case '/second':
             return MaterialPageRoute(
               builder: (_) => const SecondFlutterPage(),
             );
+          case '/settings':
+            return MaterialPageRoute(
+              builder: (_) => const SettingsPage(),
+            );
+          case '/about':
+            return MaterialPageRoute(
+              builder: (_) => const AboutPage(),
+            );
+          case '/agreement':
+            return MaterialPageRoute(
+              builder: (_) => const AgreementPage(),
+            );
+          case '/agreement_detail':
+            return MaterialPageRoute(
+              builder: (_) => const AgreementDetailPage(),
+            );
           default:
-            return null;
+            return MaterialPageRoute(
+              builder: (_) => const FirstFlutterPage(),
+            );
         }
       },
     );
@@ -77,7 +109,7 @@ class FirstFlutterPage extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 40),
-            // 新增：AI 聊天入口
+            // AI 聊天入口
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.of(context).push(

@@ -1,12 +1,9 @@
 package com.example.cooldemo
 
 import android.Manifest
-import android.content.ComponentName
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import io.flutter.embedding.android.FlutterActivity
 import com.example.cooldemo.databinding.ActivityMainBinding
 import com.permissionx.guolindev.PermissionX
 
@@ -21,13 +18,8 @@ class MainActivity : AppCompatActivity() {
 
         requestStoragePermission()
 
-        binding.buttonOpenAiChat.setOnClickListener {
-            val engineId = "ai_chat_engine"
-            FlutterEngineManager.createEngineWithRoute(this, engineId, "/model_setup")
-            val intent = FlutterActivity.withCachedEngine(engineId)
-                .build(this)
-            intent.component = ComponentName(this, CustomFlutterActivity::class.java)
-            startActivity(intent)
+        binding.buttonOpenFeatures.setOnClickListener {
+            startActivity(android.content.Intent(this, FeaturesActivity::class.java))
         }
     }
 

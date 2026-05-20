@@ -6,7 +6,6 @@ class MyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        FlutterEngineManager.init(this)
-        FlutterEngineManager.prepareDefaultEngine(this)
+        FlutterHybrid.init(this)
     }
 }
