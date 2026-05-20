@@ -58,7 +58,7 @@ class LlamaService {
   Future<String> generate(
     String prompt, {
     int maxTokens = 256,
-    double temperature = 0.7,
+    double temperature = 0.2,
   }) async {
     _ensureLoaded();
     final result = await _send({
@@ -116,7 +116,7 @@ class LlamaService {
   Future<String> chat(
     String formattedPrompt, {
     int maxTokens = 256,
-    double temperature = 0.7,
+    double temperature = 0.2,
   }) async {
     _ensureLoaded();
     final result = await _send({
