@@ -143,7 +143,7 @@ class ChatService extends ChangeNotifier {
           LogByLLM.d('【LLM Token】$token');
         },
         maxTokens: _maxResponseTokens,
-        temperature: 0.2,
+        temperature: 0.7,
       );
 
       // 标记完成

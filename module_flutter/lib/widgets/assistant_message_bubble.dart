@@ -22,7 +22,7 @@ class AssistantMessageBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.grey.shade200,
+          color: const Color(0xFFF2F4F7),
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomLeft: const Radius.circular(4),
           ),

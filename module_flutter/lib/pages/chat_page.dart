@@ -25,7 +25,7 @@ class _ChatPageState extends State<ChatPage> {
   // 常用语列表，自行修改内容
   final List<String> _quickPhrases = [
     '你好',
-    '返回一段markdown格式的内容',
+    '写一个java中的最优的单例子模式 使用markdown格式',
     '再见',
   ];
 

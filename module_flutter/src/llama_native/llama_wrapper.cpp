@@ -135,9 +135,28 @@ static int generate_internal(
     }
     tokens.resize(static_cast<size_t>(n_tokens));
 
-    // Build sampler chain: temperature -> dist
+    // Build sampler chain:
+    // penalties -> top_k -> top_p -> temp -> dist
+    // Repeat penalty is crucial to prevent repetitive output loops
     llama_sampler* sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+
+    // Repeat penalty: penalize tokens that already appeared in the context
+    // repeat_last_n = 64: look at last 64 tokens for repetition
+    // repeat_penalty = 1.1: moderate penalty (1.0 = no penalty, >1.0 = penalize repeats)
+    // frequency_penalty = 0.0: no frequency penalty
+    // presence_penalty = 0.0: no presence penalty
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(64, 1.10f, 0.0f, 0.0f));
+
+    // Top-k sampling: only consider top 40 tokens by probability
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+
+    // Top-p (nucleus) sampling: sample from tokens whose cumulative prob >= 0.9
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
+
+    // Temperature: controls randomness (higher = more random)
     llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
+
+    // Dist: random sampling from the filtered distribution
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     std::string result;
@@ -188,6 +207,16 @@ static int generate_internal(
 
         if (n_piece > 0) {
             std::string token_str(piece_buf, static_cast<size_t>(n_piece));
+
+            // Stop generation if we encounter Qwen chat template end markers
+            // This prevents the model from generating beyond the intended response
+            if (token_str.find("<|im_end|>") != std::string::npos ||
+                token_str.find("<|im_start|>") != std::string::npos ||
+                token_str.find("<|endoftext|>") != std::string::npos) {
+                LOGI("generate_internal: stop token detected, breaking");
+                break;
+            }
+
             result += token_str;
 
             if (token_callback) {
