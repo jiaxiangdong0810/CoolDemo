@@ -6,6 +6,10 @@ import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.example.cooldemo.native.UserApiImpl
+import com.example.cooldemo.native.SettingApiImpl
+import com.example.cooldemo.pigeon.UserApi
+import com.example.cooldemo.pigeon.SettingApi
 
 /**
  * 自定义 FlutterActivity，每个实例绑定独立的 Engine。
@@ -38,8 +42,15 @@ class HybridFlutterActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
 
         flutterEngine?.let { engine ->
+            val messenger = engine.dartExecutor.binaryMessenger
+
+            // Pigeon API 注册
+            UserApi.setUp(messenger, UserApiImpl(this))
+            SettingApi.setUp(messenger, SettingApiImpl(this))
+
+            // 保留原有 MethodChannel（暂不迁移）
             methodChannel = MethodChannel(
-                engine.dartExecutor.binaryMessenger,
+                messenger,
                 "com.example.cooldemo/navigation"
             )
             methodChannel?.setMethodCallHandler { call, result ->

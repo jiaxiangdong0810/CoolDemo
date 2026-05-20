@@ -3,6 +3,9 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'native/event_channel.dart';
+import 'native/user_channel.dart';
+import 'native/generated/api.g.dart';
 import 'pages/about_page.dart';
 import 'pages/agreement_detail_page.dart';
 import 'pages/agreement_page.dart';
@@ -12,6 +15,8 @@ import 'pages/settings_page.dart';
 import 'services/llama_service.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  EventApi.setUp(EventReceiver());
   runApp(MyApp(initialRoute: PlatformDispatcher.instance.defaultRouteName));
 }
 
@@ -81,8 +86,51 @@ class MyApp extends StatelessWidget {
 /// MethodChannel 用于与原生通信
 const _channel = MethodChannel('com.example.cooldemo/navigation');
 
-class FirstFlutterPage extends StatelessWidget {
+class FirstFlutterPage extends StatefulWidget {
   const FirstFlutterPage({super.key});
+
+  @override
+  State<FirstFlutterPage> createState() => _FirstFlutterPageState();
+}
+
+class _FirstFlutterPageState extends State<FirstFlutterPage> {
+  final _userChannel = UserChannel();
+  final _eventReceiver = EventReceiver();
+
+  UserInfo? _userInfo;
+  bool _loadingUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+    _listenEvents();
+  }
+
+  void _listenEvents() {
+    _eventReceiver.userInfoStream.listen((userInfo) {
+      if (!mounted) return;
+      setState(() {
+        _userInfo = userInfo;
+      });
+    });
+  }
+
+  Future<void> _loadUserInfo() async {
+    try {
+      final user = await _userChannel.getCurrentUser();
+      if (!mounted) return;
+      setState(() {
+        _userInfo = user;
+        _loadingUser = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingUser = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,63 +142,142 @@ class FirstFlutterPage extends StatelessWidget {
         automaticallyImplyLeading: false,
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.flutter_dash, size: 80, color: Colors.blue),
-            const SizedBox(height: 20),
-            const Text(
-              'Flutter 第 1 页',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '原生 → Flutter(第1页) → Flutter(第2页) → 原生',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 40),
-            // AI 聊天入口
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ModelSetupPage(
-                      llamaService: LlamaService(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.flutter_dash, size: 80, color: Colors.blue),
+              const SizedBox(height: 20),
+              const Text(
+                'Flutter 第 1 页',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '原生 → Flutter(第1页) → Flutter(第2页) → 原生',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+
+              // 用户信息卡片（演示原生同步）
+              _buildUserCard(),
+              const SizedBox(height: 24),
+
+              // AI 聊天入口
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ModelSetupPage(
+                        llamaService: LlamaService(),
+                      ),
                     ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.chat_bubble),
-              label: const Text('本地 AI 聊天'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble),
+                label: const Text('本地 AI 聊天'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SecondFlutterPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.navigate_next),
+                label: const Text('打开第二个 Flutter 页面'),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  SystemNavigator.pop();
+                },
+                icon: const Icon(Icons.close),
+                label: const Text('关闭页面（返回原生）'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserCard() {
+    if (_loadingUser) {
+      return const SizedBox(
+        height: 60,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    final user = _userInfo;
+    if (user == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.person_outline, color: Colors.grey),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('未登录', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      '原生修改用户信息后，进入此页面可同步显示',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      color: Colors.blue.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.blue,
+              child: Text(
+                (user.nickname ?? 'U').substring(0, 1).toUpperCase(),
+                style: const TextStyle(color: Colors.white),
               ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const SecondFlutterPage(),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.nickname ?? '用户',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                );
-              },
-              icon: const Icon(Icons.navigate_next),
-              label: const Text('打开第二个 Flutter 页面'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                SystemNavigator.pop();
-              },
-              icon: const Icon(Icons.close),
-              label: const Text('关闭页面（返回原生）'),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.red,
+                  Text(
+                    'ID: ${user.userId}${user.vipLevel != null && user.vipLevel! > 0 ? '  |  VIP ${user.vipLevel}' : ''}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
+            const Icon(Icons.sync, color: Colors.green, size: 16),
           ],
         ),
       ),
