@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,21 +7,41 @@ import 'pages/model_setup_page.dart';
 import 'services/llama_service.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp(initialRoute: ui.window.defaultRouteName));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
+    final bool startFromModelSetup = initialRoute == '/model_setup';
+
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const FirstFlutterPage(),
+      home: startFromModelSetup
+          ? ModelSetupPage(llamaService: LlamaService())
+          : const FirstFlutterPage(),
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/model_setup':
+            return MaterialPageRoute(
+              builder: (_) => ModelSetupPage(llamaService: LlamaService()),
+            );
+          case '/second':
+            return MaterialPageRoute(
+              builder: (_) => const SecondFlutterPage(),
+            );
+          default:
+            return null;
+        }
+      },
     );
   }
 }
@@ -89,7 +111,7 @@ class FirstFlutterPage extends StatelessWidget {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
-                Navigator.of(context).maybePop();
+                SystemNavigator.pop();
               },
               icon: const Icon(Icons.close),
               label: const Text('关闭页面（返回原生）'),

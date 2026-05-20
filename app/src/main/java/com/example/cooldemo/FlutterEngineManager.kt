@@ -51,6 +51,26 @@ object FlutterEngineManager {
     }
 
     /**
+     * 创建指定初始路由的 Engine 并缓存。
+     * 适用于原生直接跳转到指定 Flutter 页面的场景。
+     * 通过 EngineGroup 复用 Dart VM，仅创建新的 isolate。
+     */
+    fun createEngineWithRoute(context: Context, engineId: String, initialRoute: String): FlutterEngine {
+        FlutterEngineCache.getInstance().get(engineId)?.let {
+            it.destroy()
+            FlutterEngineCache.getInstance().remove(engineId)
+        }
+
+        val engine = engineGroup!!.createAndRunEngine(
+            context,
+            DartExecutor.DartEntrypoint.createDefault(),
+            initialRoute
+        )
+        FlutterEngineCache.getInstance().put(engineId, engine)
+        return engine
+    }
+
+    /**
      * 获取默认 Engine 的缓存 ID，供 FlutterActivity.withCachedEngine() 使用。
      */
     fun getDefaultEngineId(): String = DEFAULT_ENGINE_ID
