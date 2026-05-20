@@ -1,0 +1,31 @@
+# Gradle / Android 构建产物
+.gradle/
+build/
+*/build/
+.kotlin/
+.externalNativeBuild/
+.cxx/
+captures/
+
+# IDE 配置
+.idea/
+*.iml
+
+# 本地配置
+local.properties
+
+# Flutter 生成的嵌入代码（在 Android 宿主项目中无用）
+module_flutter/.ios/
+module_flutter/.android/
+module_flutter/.dart_tool/
+module_flutter/.idea/
+module_flutter/*.iml
+
+# macOS 系统文件
+.DS_Store
+
+# Claude 自身配置目录
+.claude/
+
+# Git 目录
+.git/

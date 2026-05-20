@@ -1,0 +1,3 @@
+[submodule "module_flutter/src/llama_native/llama.cpp"]
+	path = module_flutter/src/llama_native/llama.cpp
+	url = https://github.com/ggerganov/llama.cpp.git
