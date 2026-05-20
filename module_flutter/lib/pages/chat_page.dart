@@ -19,10 +19,21 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
 
+  int _lastMessageCount = 0;
+  bool _showQuickPhrases = false;
+
+  // 常用语列表，自行修改内容
+  final List<String> _quickPhrases = [
+    '你好',
+    '返回一段markdown格式的内容',
+    '再见',
+  ];
+
   @override
   void initState() {
     super.initState();
     widget.chatService.addListener(_onServiceChanged);
+    _lastMessageCount = widget.chatService.messages.length;
   }
 
   @override
@@ -35,8 +46,16 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _onServiceChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) return;
+
+    final currentCount = widget.chatService.messages.length;
+    final hasNewMessage = currentCount > _lastMessageCount;
+    _lastMessageCount = currentCount;
+
+    setState(() {});
+
+    // 只在新增消息时自动滚动，流式追加 token 时不滚动
+    if (hasNewMessage) {
       _scrollToBottom();
     }
   }
@@ -61,8 +80,23 @@ class _ChatPageState extends State<ChatPage> {
 
     _controller.clear();
     _focusNode.unfocus();
+    setState(() => _showQuickPhrases = false);
 
     await widget.chatService.sendMessage(text);
+  }
+
+  Future<void> _sendQuickPhrase(String text) async {
+    if (widget.chatService.isGenerating) return;
+
+    _focusNode.unfocus();
+    setState(() => _showQuickPhrases = false);
+
+    await widget.chatService.sendMessage(text);
+  }
+
+  void _toggleQuickPhrases() {
+    _focusNode.unfocus();
+    setState(() => _showQuickPhrases = !_showQuickPhrases);
   }
 
   @override
@@ -99,13 +133,42 @@ class _ChatPageState extends State<ChatPage> {
                     },
                   ),
           ),
+          if (_showQuickPhrases) _buildQuickPhrasePanel(),
           ChatInputBar(
             controller: _controller,
             focusNode: _focusNode,
             isGenerating: isGenerating,
             onSend: _sendMessage,
+            onQuickPhrase: _toggleQuickPhrases,
+            onStop: widget.chatService.stopGeneration,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQuickPhrasePanel() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: SafeArea(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _quickPhrases.map((text) {
+            return ActionChip(
+              label: Text(text),
+              backgroundColor: Colors.white,
+              side: BorderSide(color: Colors.grey.shade300),
+              onPressed: () => _sendQuickPhrase(text),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -144,10 +207,10 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildMessageItem(ChatMessage msg) {
     final isUser = msg.role == MessageRole.user;
 
-    if (isUser) {
-      return UserMessageBubble(message: msg);
-    } else {
-      return AssistantMessageBubble(message: msg);
-    }
+    return RepaintBoundary(
+      child: isUser
+          ? UserMessageBubble(key: ValueKey(msg.id), message: msg)
+          : AssistantMessageBubble(key: ValueKey(msg.id), message: msg),
+    );
   }
 }

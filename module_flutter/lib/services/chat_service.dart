@@ -11,25 +11,30 @@ enum MessageRole { system, user, assistant }
 
 /// 聊天消息数据模型
 class ChatMessage {
+  final String id;
   final MessageRole role;
   final String content;
   final DateTime timestamp;
   final bool isComplete;
 
   ChatMessage({
+    String? id,
     required this.role,
     required this.content,
     DateTime? timestamp,
     this.isComplete = true,
-  }) : timestamp = timestamp ?? DateTime.now();
+  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        timestamp = timestamp ?? DateTime.now();
 
   ChatMessage copyWith({
+    String? id,
     MessageRole? role,
     String? content,
     DateTime? timestamp,
     bool? isComplete,
   }) {
     return ChatMessage(
+      id: id ?? this.id,
       role: role ?? this.role,
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,
@@ -38,6 +43,7 @@ class ChatMessage {
   }
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'role': role.name,
         'content': content,
         'timestamp': timestamp.toIso8601String(),
@@ -84,6 +90,12 @@ class ChatService extends ChangeNotifier {
   void clearHistory() {
     _messages.clear();
     notifyListeners();
+  }
+
+  /// 停止当前生成
+  void stopGeneration() {
+    if (!_isGenerating) return;
+    _llamaService.stopGeneration();
   }
 
   /// 发送用户消息并获得回复（流式）

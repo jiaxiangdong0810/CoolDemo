@@ -70,6 +70,9 @@ typedef LLamaWrapperFreeDart = void Function(Pointer<Void> modelCtx);
 typedef LLamaGetLastErrorC = Pointer<Utf8> Function();
 typedef LLamaGetLastErrorDart = Pointer<Utf8> Function();
 
+typedef LLamaSetStopFlagC = Void Function(Int32 flag);
+typedef LLamaSetStopFlagDart = void Function(int flag);
+
 // 流式生成的 token 回调类型
 typedef TokenCallbackC = Void Function(Pointer<Utf8> token, Pointer<Void> userData);
 
@@ -114,4 +117,8 @@ final LLamaWrapperFreeDart llamaWrapperFree = _lib
 
 final LLamaGetLastErrorDart llamaGetLastError = _lib
     .lookup<NativeFunction<LLamaGetLastErrorC>>('llama_get_last_error')
+    .asFunction();
+
+final LLamaSetStopFlagDart llamaSetStopFlag = _lib
+    .lookup<NativeFunction<LLamaSetStopFlagC>>('llama_set_stop_flag')
     .asFunction();

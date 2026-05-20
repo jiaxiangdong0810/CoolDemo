@@ -6,6 +6,8 @@ class ChatInputBar extends StatelessWidget {
   final FocusNode focusNode;
   final bool isGenerating;
   final VoidCallback onSend;
+  final VoidCallback? onQuickPhrase;
+  final VoidCallback? onStop;
 
   const ChatInputBar({
     super.key,
@@ -13,6 +15,8 @@ class ChatInputBar extends StatelessWidget {
     required this.focusNode,
     required this.isGenerating,
     required this.onSend,
+    this.onQuickPhrase,
+    this.onStop,
   });
 
   @override
@@ -53,16 +57,21 @@ class ChatInputBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (!isGenerating && onQuickPhrase != null)
+              IconButton(
+                onPressed: onQuickPhrase,
+                icon: const Icon(Icons.auto_fix_high),
+                color: Colors.orange,
+                iconSize: 24,
+              ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               child: isGenerating
-                  ? const SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
+                  ? IconButton(
+                      onPressed: onStop,
+                      icon: const Icon(Icons.stop),
+                      color: Colors.red,
+                      iconSize: 24,
                     )
                   : IconButton(
                       onPressed: onSend,

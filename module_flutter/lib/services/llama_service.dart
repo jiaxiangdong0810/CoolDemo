@@ -128,6 +128,11 @@ class LlamaService {
     return result as String;
   }
 
+  /// 发送停止信号，中断当前生成
+  void stopGeneration() {
+    llamaSetStopFlag(1);
+  }
+
   /// 释放模型资源并关闭 worker
   void dispose() {
     final port = _commandPort;

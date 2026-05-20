@@ -48,6 +48,12 @@ int llama_chat(void* model_ctx, const char* chat_prompt, char* output, int outpu
 void llama_wrapper_free(void* model_ctx);
 
 /**
+ * Set the stop flag to interrupt generation.
+ * Pass 1 to request stop, 0 to clear.
+ */
+void llama_set_stop_flag(int flag);
+
+/**
  * Get the last error message.
  */
 const char* llama_get_last_error(void);

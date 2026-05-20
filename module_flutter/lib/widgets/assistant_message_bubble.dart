@@ -44,21 +44,49 @@ class AssistantMessageBubble extends StatelessWidget {
       );
     }
 
+    // 流式输出阶段用纯 Text 渲染，避免 MarkdownBody 每个 token 都重新解析
+    // 完成后切换为 MarkdownBody 渲染富文本
+    if (!message.isComplete) {
+      return Text(
+        message.content,
+        style: const TextStyle(fontSize: 15),
+      );
+    }
+
     return MarkdownBody(
       data: message.content,
       selectable: true,
-      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-        p: const TextStyle(fontSize: 15),
+      styleSheet: MarkdownStyleSheet(
+        p: const TextStyle(fontSize: 15, color: Colors.black87),
+        h1: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+        h2: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+        h3: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+        strong: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+        em: const TextStyle(fontStyle: FontStyle.italic, color: Colors.black87),
         code: TextStyle(
           fontSize: 13,
           backgroundColor: Colors.grey.shade300,
+          color: Colors.black87,
           fontFamily: 'monospace',
         ),
         codeblockDecoration: BoxDecoration(
-          color: Colors.grey.shade800,
+          color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
         ),
         codeblockPadding: const EdgeInsets.all(12),
+        blockquote: TextStyle(
+          fontSize: 15,
+          color: Colors.grey.shade700,
+          fontStyle: FontStyle.italic,
+        ),
+        blockquoteDecoration: BoxDecoration(
+          border: Border(left: BorderSide(color: Colors.grey.shade400, width: 4)),
+          color: Colors.grey.shade50,
+        ),
+        blockquotePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        listBullet: const TextStyle(fontSize: 15, color: Colors.black87),
+        a: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
       ),
     );
   }

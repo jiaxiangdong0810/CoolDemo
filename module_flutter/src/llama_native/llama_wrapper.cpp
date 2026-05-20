@@ -1,11 +1,22 @@
 #include "llama_wrapper.h"
 #include <llama.h>
+#include <atomic>
 #include <string>
 #include <vector>
 #include <cstring>
 
+#include <android/log.h>
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "LLAMA_WRAPPER", __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "LLAMA_WRAPPER", __VA_ARGS__)
+
 static std::string g_last_error;
 static bool g_backend_initialized = false;
+static std::atomic<bool> g_stop_flag{false};
+
+void llama_set_stop_flag(int flag) {
+    LOGI("llama_set_stop_flag called: %d", flag);
+    g_stop_flag.store(flag != 0);
+}
 
 static void set_error(const char* msg) {
     g_last_error = msg;
@@ -132,6 +143,10 @@ static int generate_internal(
     std::string result;
     llama_pos n_cur = 0;
 
+    // Reset stop flag at the start of each generation
+    LOGI("generate_internal: resetting stop flag");
+    g_stop_flag.store(false);
+
     // Create batch (max 512 tokens, 1 sequence)
     llama_batch batch = llama_batch_init(512, 0, 1);
 
@@ -150,6 +165,11 @@ static int generate_internal(
 
     // Generate new tokens
     for (int i = 0; i < max_tokens; i++) {
+        if (g_stop_flag.load()) {
+            LOGI("generate_internal: stop flag detected, breaking at token %d", i);
+            break;
+        }
+
         llama_token new_token_id = llama_sampler_sample(sampler, ctx, -1);
 
         if (llama_vocab_is_eog(vocab, new_token_id)) {
