@@ -1,120 +1,91 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
+import '../models/chat_message.dart';
 import '../prompts/system_prompts.dart';
 import '../utils/log.dart';
 import 'llama_service.dart';
 
-/// 消息角色
-enum MessageRole { system, user, assistant }
-
-/// 聊天消息数据模型
-class ChatMessage {
+/// 单会话逻辑 - 管理一个对话的消息列表和生成过程
+///
+/// 职责：
+/// - 维护本会话的消息列表
+/// - Prompt 格式化、上下文截断
+/// - 调用 LlamaService 生成回复
+/// - 标题生成（第一条用户消息前20字）
+///
+/// 不继承 ChangeNotifier，不感知持久化，不感知其他会话存在。
+/// 状态变更通过 [onUpdated] 回调通知外部。
+class ChatSession {
   final String id;
-  final MessageRole role;
-  final String content;
-  final DateTime timestamp;
-  final bool isComplete;
-
-  ChatMessage({
-    String? id,
-    required this.role,
-    required this.content,
-    DateTime? timestamp,
-    this.isComplete = true,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        timestamp = timestamp ?? DateTime.now();
-
-  ChatMessage copyWith({
-    String? id,
-    MessageRole? role,
-    String? content,
-    DateTime? timestamp,
-    bool? isComplete,
-  }) {
-    return ChatMessage(
-      id: id ?? this.id,
-      role: role ?? this.role,
-      content: content ?? this.content,
-      timestamp: timestamp ?? this.timestamp,
-      isComplete: isComplete ?? this.isComplete,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'role': role.name,
-        'content': content,
-        'timestamp': timestamp.toIso8601String(),
-      };
-}
-
-/// 聊天服务 - 管理对话历史、消息格式化、调用 LlamaService 生成回复
-class ChatService extends ChangeNotifier {
-  final LlamaService _llamaService;
-
-  ChatService({LlamaService? llamaService})
-      : _llamaService = llamaService ?? LlamaService() {
-    _systemPrompt = SystemPrompts.defaultQA;
-  }
-
+  String? _title;
+  final DateTime createdAt;
+  DateTime _updatedAt;
   final List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => List.unmodifiable(_messages);
-
   bool _isGenerating = false;
-  bool get isGenerating => _isGenerating;
-
   String? _systemPrompt;
-  String? get systemPrompt => _systemPrompt;
 
+  // 上下文限制
   static const int _maxContextTokens = 2048;
   static const int _maxResponseTokens = 512;
 
-  /// 设置系统提示词
-  void setSystemPrompt(String prompt) {
-    _systemPrompt = prompt;
-    notifyListeners();
+  ChatSession._({
+    required this.id,
+    String? title,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? systemPrompt,
+    List<ChatMessage>? messages,
+  })  : _title = title,
+        createdAt = createdAt ?? DateTime.now(),
+        _updatedAt = updatedAt ?? DateTime.now(),
+        _systemPrompt = systemPrompt ?? SystemPrompts.defaultQA {
+    if (messages != null) {
+      _messages.addAll(messages);
+    }
   }
 
-  /// 添加一条消息
-  void addMessage(ChatMessage message) {
-    _messages.add(message);
-    notifyListeners();
-  }
+  factory ChatSession.create() => ChatSession._(id: _generateId());
 
-  /// 获取对话历史
-  List<ChatMessage> getHistory() => List.unmodifiable(_messages);
+  // ========== 状态查询 ==========
 
-  /// 清空对话历史（保留系统提示词）
-  void clearHistory() {
-    _messages.clear();
-    notifyListeners();
-  }
+  String get title => _title ?? '新对话';
 
-  /// 停止当前生成
-  void stopGeneration() {
-    if (!_isGenerating) return;
-    _llamaService.stopGeneration();
-  }
+  List<ChatMessage> get messages => List.unmodifiable(_messages);
 
-  /// 发送用户消息并获得回复（流式）
-  Future<void> sendMessage(String userMessage) async {
-    if (userMessage.trim().isEmpty) return;
+  bool get isGenerating => _isGenerating;
+
+  bool get isEmpty => _messages.isEmpty;
+
+  bool get hasUserMessage => _messages.any((m) => m.role == MessageRole.user);
+
+  DateTime get updatedAt => _updatedAt;
+
+  int get messageCount => _messages.length;
+
+  // ========== 核心：发送消息并流式生成 ==========
+
+  Future<void> sendMessage(
+    String text,
+    LlamaService llamaService, {
+    required void Function() onUpdated,
+  }) async {
+    if (text.trim().isEmpty) return;
+
+    final trimmed = text.trim();
 
     // 添加用户消息
-    addMessage(ChatMessage(role: MessageRole.user, content: userMessage.trim()));
+    _addUserMessage(trimmed);
+    _updatedAt = DateTime.now();
+    onUpdated();
 
     _isGenerating = true;
-    notifyListeners();
+    onUpdated();
 
     try {
-      // 构建格式化的 prompt
       final prompt = _buildPrompt();
 
-      // 打印用户发送的消息和完整上下文
       LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      LogByLLM.d('【用户发送】$userMessage');
+      LogByLLM.d('【用户发送】$trimmed');
       LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       LogByLLM.d('【完整上下文 Prompt】\n$prompt');
       LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -125,21 +96,20 @@ class ChatService extends ChangeNotifier {
         content: '',
         isComplete: false,
       );
-      addMessage(assistantMessage);
+      _messages.add(assistantMessage);
       final assistantIndex = _messages.length - 1;
+      onUpdated();
 
       // 流式生成
       final buffer = StringBuffer();
-      await _llamaService.generateStream(
+      await llamaService.generateStream(
         prompt,
         onToken: (token) {
           buffer.write(token);
           _messages[assistantIndex] = assistantMessage.copyWith(
             content: buffer.toString(),
           );
-          notifyListeners();
-
-          // 打印 LLM 实时生成的 token
+          onUpdated();
           LogByLLM.d('【LLM Token】$token');
         },
         maxTokens: _maxResponseTokens,
@@ -151,13 +121,12 @@ class ChatService extends ChangeNotifier {
         content: buffer.toString(),
         isComplete: true,
       );
+      _updatedAt = DateTime.now();
 
-      // 打印 LLM 完整回复
       LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       LogByLLM.d('【LLM 完整回复】${buffer.toString()}');
       LogByLLM.d('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (e) {
-      // 替换失败的助手消息为错误提示
       if (_messages.isNotEmpty && _messages.last.role == MessageRole.assistant) {
         _messages[_messages.length - 1] = ChatMessage(
           role: MessageRole.assistant,
@@ -167,24 +136,35 @@ class ChatService extends ChangeNotifier {
       }
     } finally {
       _isGenerating = false;
-      notifyListeners();
+      onUpdated();
     }
   }
 
-  /// 将对话历史格式化为 Qwen chat template 格式的 prompt
+  /// 停止当前生成
+  void stopGeneration(LlamaService llamaService) {
+    if (!_isGenerating) return;
+    llamaService.stopGeneration();
+  }
+
+  /// 清空本会话消息（保留系统提示词）
+  void clearMessages() {
+    _messages.clear();
+    _title = null;
+    _updatedAt = DateTime.now();
+  }
+
+  // ========== Prompt 构建与截断 ==========
+
   String _buildPrompt() {
     final buffer = StringBuffer();
 
-    // 系统提示词
     if (_systemPrompt != null && _systemPrompt!.isNotEmpty) {
       buffer.writeln('<|im_start|>system');
       buffer.writeln(_systemPrompt);
       buffer.writeln('<|im_end|>');
     }
 
-    // 截断后的对话历史
     final truncatedMessages = _truncateHistory();
-
     for (final msg in truncatedMessages) {
       switch (msg.role) {
         case MessageRole.user:
@@ -196,25 +176,18 @@ class ChatService extends ChangeNotifier {
           buffer.writeln(msg.content);
           buffer.writeln('<|im_end|>');
         case MessageRole.system:
-          // 已在上方处理
           break;
       }
     }
 
-    // 添加 assistant 前缀，引导模型生成回复
     buffer.write('<|im_start|>assistant\n');
-
     return buffer.toString();
   }
 
-  /// 上下文截断：保留系统提示词和最新的对话
   List<ChatMessage> _truncateHistory() {
-    // 简单策略：估计每个消息约 50-200 tokens
-    // 保留 system prompt + 最近的消息对，直到接近上下文限制
     const estimatedTokensPerMessage = 100;
     const maxMessages = (_maxContextTokens - _maxResponseTokens) ~/ estimatedTokensPerMessage;
 
-    // 过滤掉系统消息（已单独处理）和未完成的助手消息
     final historyMessages = _messages
         .where((m) => m.role != MessageRole.system && m.isComplete)
         .toList();
@@ -222,14 +195,48 @@ class ChatService extends ChangeNotifier {
     if (historyMessages.length <= maxMessages) {
       return historyMessages;
     }
-
-    // 保留最新的消息
     return historyMessages.sublist(historyMessages.length - maxMessages);
   }
 
-  @override
-  void dispose() {
-    _llamaService.dispose();
-    super.dispose();
+  // ========== 内部工具 ==========
+
+  void _addUserMessage(String text) {
+    _messages.add(ChatMessage(role: MessageRole.user, content: text));
+    if (_title == null) {
+      _title = _generateTitle(text);
+    }
+  }
+
+  static String _generateTitle(String firstUserMessage) {
+    if (firstUserMessage.length <= 20) return firstUserMessage;
+    return '${firstUserMessage.substring(0, 20)}...';
+  }
+
+  static String _generateId() {
+    return DateTime.now().millisecondsSinceEpoch.toString();
+  }
+
+  // ========== 序列化 ==========
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': _title,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': _updatedAt.toIso8601String(),
+        'systemPrompt': _systemPrompt,
+        'messages': _messages.map((m) => m.toJson()).toList(),
+      };
+
+  factory ChatSession.fromJson(Map<String, dynamic> json) {
+    return ChatSession._(
+      id: json['id'] as String,
+      title: json['title'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      systemPrompt: json['systemPrompt'] as String?,
+      messages: (json['messages'] as List<dynamic>?)
+          ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
   }
 }

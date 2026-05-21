@@ -12,7 +12,6 @@ import 'pages/agreement_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/model_setup_page.dart';
 import 'pages/settings_page.dart';
-import 'services/llama_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,13 +43,13 @@ class MyApp extends StatelessWidget {
             );
           case '/model_setup':
             return MaterialPageRoute(
-              builder: (_) => ModelSetupPage(llamaService: LlamaService()),
+              builder: (_) => const ModelSetupPage(),
             );
           case '/chat':
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
               builder: (_) => ChatPage(
-                chatService: args?['chatService'],
+                sessionManager: args?['sessionManager'],
               ),
             );
           case '/second':
@@ -169,9 +168,7 @@ class _FirstFlutterPageState extends State<FirstFlutterPage> {
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => ModelSetupPage(
-                        llamaService: LlamaService(),
-                      ),
+                      builder: (_) => const ModelSetupPage(),
                     ),
                   );
                 },

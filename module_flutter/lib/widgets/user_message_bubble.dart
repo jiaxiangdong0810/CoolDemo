@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/chat_service.dart';
+import '../models/chat_message.dart';
 
 /// 用户发送的消息气泡
 class UserMessageBubble extends StatelessWidget {

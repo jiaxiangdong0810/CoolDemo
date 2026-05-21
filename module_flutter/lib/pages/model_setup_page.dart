@@ -1,6 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../services/chat_service.dart';
+import '../services/chat_session_manager.dart';
 import '../services/llama_service.dart';
 import '../services/model_manager.dart';
 import '../utils/log.dart';
@@ -8,15 +8,14 @@ import 'chat_page.dart';
 
 /// 模型设置页面 - 首次启动时引导用户下载模型
 class ModelSetupPage extends StatefulWidget {
-  final LlamaService llamaService;
-
-  const ModelSetupPage({super.key, required this.llamaService});
+  const ModelSetupPage({super.key});
 
   @override
   State<ModelSetupPage> createState() => _ModelSetupPageState();
 }
 
 class _ModelSetupPageState extends State<ModelSetupPage> {
+  final LlamaService _llamaService = LlamaService();
   final ModelManager _modelManager = ModelManager();
   bool _isLoading = true;
   bool _isDownloading = false;
@@ -31,11 +30,23 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   static const String _defaultModelUrl =
       'https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_0.gguf';
 
+  /// 标记是否正在跳转到聊天页，用于区分 dispose 场景：
+  /// - true: pushReplacement 去 ChatPage，不销毁 LlamaService
+  /// - false: pop 回主页面，销毁 LlamaService 释放资源
+  bool _navigatingToChat = false;
+
   @override
   void initState() {
-
     super.initState();
     _checkModel();
+  }
+
+  @override
+  void dispose() {
+    if (!_navigatingToChat) {
+      _llamaService.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _checkModel() async {
@@ -71,17 +82,31 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
     try {
       final modelPath = await _modelManager.getModelPath(_defaultModelName);
       LogByCommon.d('模型路径: $modelPath');
-      await widget.llamaService.loadModel(modelPath);
-      LogByCommon.d('模型加载成功，进入聊天页');
+
+      // 同一模型已加载则跳过
+      if (!_llamaService.isLoaded || _llamaService.loadedModelPath != modelPath) {
+        await _llamaService.loadModel(modelPath);
+        LogByCommon.d('模型加载成功');
+      } else {
+        LogByCommon.d('模型已加载，跳过重复加载');
+      }
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => ChatPage(
-              chatService: ChatService(llamaService: widget.llamaService),
-            ),
-          ),
+        final sessionManager = ChatSessionManager(
+          llamaService: _llamaService,
         );
+        await sessionManager.init();
+
+        if (mounted) {
+          _navigatingToChat = true;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => ChatPage(
+                sessionManager: sessionManager,
+              ),
+            ),
+          );
+        }
       }
     } catch (e, stack) {
       LogByCommon.d('模型加载失败', error: e, stackTrace: stack);
@@ -161,6 +186,8 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
 
       if (importedPath != null && mounted) {
         LogByCommon.d('模型导入成功: $importedPath');
+        // 导入新模型后，释放旧模型上下文，下次点击"开始聊天"时重新加载
+        await _llamaService.unloadModel();
         setState(() {
           _isImporting = false;
           _hasModel = true;

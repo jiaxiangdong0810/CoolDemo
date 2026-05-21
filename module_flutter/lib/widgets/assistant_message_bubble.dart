@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import '../services/chat_service.dart';
+import '../models/chat_message.dart';
 
 /// AI 返回的消息气泡
 class AssistantMessageBubble extends StatelessWidget {

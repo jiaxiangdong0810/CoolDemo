@@ -10,11 +10,19 @@ import '../ffi/llama_bindings.dart';
 ///
 /// 所有 FFI 调用都在后台 worker isolate 中执行，避免阻塞 UI 线程。
 /// 主 isolate 通过 SendPort 与 worker 通信；流式 token 通过独立 ReceivePort 推回。
+///
+/// 单例模式：整个 App 生命周期内只有一个实例，避免重复创建 worker isolate。
 class LlamaService {
+  static final LlamaService _instance = LlamaService._internal();
+  factory LlamaService() => _instance;
+  LlamaService._internal();
+
   SendPort? _commandPort;
   bool _isLoaded = false;
+  String? _loadedModelPath;
 
   bool get isLoaded => _isLoaded;
+  String? get loadedModelPath => _loadedModelPath;
 
   /// 启动 worker isolate（仅首次调用时启动）
   Future<void> _ensureWorker() async {
@@ -48,10 +56,28 @@ class LlamaService {
   }
 
   /// 加载 GGUF 模型文件
+  ///
+  /// 如果同一模型已加载，直接返回成功，避免重复加载。
+  /// 如果已加载其他模型，会先 unload 旧模型再加载新模型。
   Future<bool> loadModel(String modelPath) async {
+    if (_isLoaded && _loadedModelPath == modelPath) {
+      return true;
+    }
+    if (_isLoaded) {
+      await unloadModel();
+    }
     await _send({'op': 'load', 'path': modelPath});
     _isLoaded = true;
+    _loadedModelPath = modelPath;
     return true;
+  }
+
+  /// 释放当前模型上下文（保留 worker isolate）
+  Future<void> unloadModel() async {
+    if (!_isLoaded) return;
+    await _send({'op': 'unload'});
+    _isLoaded = false;
+    _loadedModelPath = null;
   }
 
   /// 单轮文本生成
@@ -133,7 +159,7 @@ class LlamaService {
     llamaSetStopFlag(1);
   }
 
-  /// 释放模型资源并关闭 worker
+  /// 释放模型资源并关闭 worker isolate
   void dispose() {
     final port = _commandPort;
     if (port != null) {
@@ -141,6 +167,7 @@ class LlamaService {
     }
     _commandPort = null;
     _isLoaded = false;
+    _loadedModelPath = null;
   }
 
   void _ensureLoaded() {
@@ -177,6 +204,13 @@ void _workerEntry(SendPort mainSendPort) {
         case 'load':
           final path = msg['path'] as String;
           ctx = _workerLoad(path);
+          reply?.send({'ok': true, 'value': true});
+
+        case 'unload':
+          if (ctx != null && ctx != nullptr) {
+            llamaWrapperFree(ctx!);
+            ctx = null;
+          }
           reply?.send({'ok': true, 'value': true});
 
         case 'generate':

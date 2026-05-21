@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import '../services/chat_service.dart';
+import '../models/chat_message.dart';
+import '../services/chat_session_manager.dart';
 import '../widgets/assistant_message_bubble.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/user_message_bubble.dart';
+import 'widgets/chat_drawer.dart';
 
 /// 聊天主页面
 class ChatPage extends StatefulWidget {
-  final ChatService chatService;
+  final ChatSessionManager sessionManager;
 
-  const ChatPage({super.key, required this.chatService});
+  const ChatPage({super.key, required this.sessionManager});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -18,11 +20,11 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   int _lastMessageCount = 0;
   bool _showQuickPhrases = false;
 
-  // 常用语列表，自行修改内容
   final List<String> _quickPhrases = [
     '你好',
     '写一个java中的最优的单例子模式 使用markdown格式',
@@ -32,29 +34,29 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    widget.chatService.addListener(_onServiceChanged);
-    _lastMessageCount = widget.chatService.messages.length;
+    widget.sessionManager.addListener(_onSessionChanged);
+    _lastMessageCount = widget.sessionManager.currentSession?.messages.length ?? 0;
   }
 
   @override
   void dispose() {
-    widget.chatService.removeListener(_onServiceChanged);
+    widget.sessionManager.removeListener(_onSessionChanged);
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  void _onServiceChanged() {
+  void _onSessionChanged() {
     if (!mounted) return;
 
-    final currentCount = widget.chatService.messages.length;
+    final session = widget.sessionManager.currentSession;
+    final currentCount = session?.messages.length ?? 0;
     final hasNewMessage = currentCount > _lastMessageCount;
     _lastMessageCount = currentCount;
 
     setState(() {});
 
-    // 只在新增消息时自动滚动，流式追加 token 时不滚动
     if (hasNewMessage) {
       _scrollToBottom();
     }
@@ -76,22 +78,22 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || widget.chatService.isGenerating) return;
+    if (text.isEmpty || widget.sessionManager.isGenerating) return;
 
     _controller.clear();
     _focusNode.unfocus();
     setState(() => _showQuickPhrases = false);
 
-    await widget.chatService.sendMessage(text);
+    await widget.sessionManager.sendMessage(text);
   }
 
   Future<void> _sendQuickPhrase(String text) async {
-    if (widget.chatService.isGenerating) return;
+    if (widget.sessionManager.isGenerating) return;
 
     _focusNode.unfocus();
     setState(() => _showQuickPhrases = false);
 
-    await widget.chatService.sendMessage(text);
+    await widget.sessionManager.sendMessage(text);
   }
 
   void _toggleQuickPhrases() {
@@ -99,24 +101,46 @@ class _ChatPageState extends State<ChatPage> {
     setState(() => _showQuickPhrases = !_showQuickPhrases);
   }
 
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  void _closeDrawer() {
+    _scaffoldKey.currentState?.closeDrawer();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final messages = widget.chatService.messages;
-    final isGenerating = widget.chatService.isGenerating;
+    final session = widget.sessionManager.currentSession;
+    final messages = session?.messages ?? [];
+    final isGenerating = widget.sessionManager.isGenerating;
+    final title = session?.title ?? '本地 AI 助手';
 
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        title: const Text('本地 AI 助手'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: _openDrawer,
+          tooltip: '历史对话',
+        ),
+        title: Text(title),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () {
-              widget.chatService.clearHistory();
-            },
-          ),
+          if (messages.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () {
+                widget.sessionManager.clearCurrentSession();
+              },
+              tooltip: '清空当前对话',
+            ),
         ],
+      ),
+      drawer: ChatDrawer(
+        sessionManager: widget.sessionManager,
+        onClose: _closeDrawer,
       ),
       body: Column(
         children: [
@@ -140,7 +164,7 @@ class _ChatPageState extends State<ChatPage> {
             isGenerating: isGenerating,
             onSend: _sendMessage,
             onQuickPhrase: _toggleQuickPhrases,
-            onStop: widget.chatService.stopGeneration,
+            onStop: widget.sessionManager.stopGeneration,
           ),
         ],
       ),
