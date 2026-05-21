@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../models/chat_message.dart';
+import '../../providers/chat_providers.dart';
 import '../../services/chat_session.dart';
-import '../../services/chat_session_manager.dart';
 
 /// 聊天侧边栏 - 历史会话列表
 ///
-/// 第一项固定为"开启新对话"，下面是历史会话列表。
-class ChatDrawer extends StatelessWidget {
-  final ChatSessionManager sessionManager;
+/// 使用 [ConsumerWidget]，通过 Riverpod 细粒度 Provider 获取状态，
+/// 不再通过构造函数传入 [ChatSessionManager]。
+class ChatDrawer extends ConsumerWidget {
   final VoidCallback onClose;
 
   const ChatDrawer({
     super.key,
-    required this.sessionManager,
     required this.onClose,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final sessions = sessionManager.sessions;
-    final currentSession = sessionManager.currentSession;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessions = ref.watch(sessionsProvider);
+    final currentSession = ref.watch(currentSessionProvider);
 
     return Drawer(
       child: SafeArea(
@@ -35,11 +36,11 @@ class ChatDrawer extends StatelessWidget {
                 itemCount: sessions.length + 1, // +1 为"开启新对话"
                 itemBuilder: (context, index) {
                   if (index == 0) {
-                    return _buildNewChatTile(context);
+                    return _buildNewChatTile(context, ref, currentSession);
                   }
                   final session = sessions[index - 1];
                   final isActive = session.id == currentSession?.id;
-                  return _buildSessionTile(context, session, isActive);
+                  return _buildSessionTile(context, ref, session, isActive);
                 },
               ),
             ),
@@ -73,8 +74,12 @@ class ChatDrawer extends StatelessWidget {
   }
 
   /// "开启新对话" 项
-  Widget _buildNewChatTile(BuildContext context) {
-    final isEmpty = sessionManager.isCurrentSessionEmpty;
+  Widget _buildNewChatTile(
+    BuildContext context,
+    WidgetRef ref,
+    ChatSession? currentSession,
+  ) {
+    final isEmpty = currentSession?.hasUserMessage != true;
 
     return ListTile(
       leading: Container(
@@ -103,7 +108,7 @@ class ChatDrawer extends StatelessWidget {
             )
           : null,
       onTap: () {
-        sessionManager.startNewSession();
+        ref.read(chatSessionManagerProvider).startNewSession();
         onClose();
       },
       shape: RoundedRectangleBorder(
@@ -115,6 +120,7 @@ class ChatDrawer extends StatelessWidget {
   /// 单个历史会话项
   Widget _buildSessionTile(
     BuildContext context,
+    WidgetRef ref,
     ChatSession session,
     bool isActive,
   ) {
@@ -172,18 +178,22 @@ class ChatDrawer extends StatelessWidget {
       ),
       onTap: () {
         if (!isActive) {
-          sessionManager.switchSession(session.id);
+          ref.read(chatSessionManagerProvider).switchSession(session.id);
         }
         onClose();
       },
       // 长按删除（仅限非当前会话）
       onLongPress: isActive
           ? null
-          : () => _confirmDelete(context, session),
+          : () => _confirmDelete(context, ref, session),
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, ChatSession session) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    ChatSession session,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -204,7 +214,7 @@ class ChatDrawer extends StatelessWidget {
     );
 
     if (confirmed == true) {
-      await sessionManager.deleteSession(session.id);
+      await ref.read(chatSessionManagerProvider).deleteSession(session.id);
     }
   }
 

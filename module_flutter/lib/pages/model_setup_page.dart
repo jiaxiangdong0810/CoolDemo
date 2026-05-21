@@ -1,21 +1,22 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../providers/chat_providers.dart';
 import '../services/chat_session_manager.dart';
-import '../services/llama_service.dart';
 import '../services/model_manager.dart';
 import '../utils/log.dart';
 import 'chat_page.dart';
 
 /// 模型设置页面 - 首次启动时引导用户下载模型
-class ModelSetupPage extends StatefulWidget {
+class ModelSetupPage extends ConsumerStatefulWidget {
   const ModelSetupPage({super.key});
 
   @override
-  State<ModelSetupPage> createState() => _ModelSetupPageState();
+  ConsumerState<ModelSetupPage> createState() => _ModelSetupPageState();
 }
 
-class _ModelSetupPageState extends State<ModelSetupPage> {
-  final LlamaService _llamaService = LlamaService();
+class _ModelSetupPageState extends ConsumerState<ModelSetupPage> {
   final ModelManager _modelManager = ModelManager();
   bool _isLoading = true;
   bool _isDownloading = false;
@@ -44,7 +45,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   @override
   void dispose() {
     if (!_navigatingToChat) {
-      _llamaService.dispose();
+      ref.read(llamaServiceProvider).dispose();
     }
     super.dispose();
   }
@@ -83,9 +84,11 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
       final modelPath = await _modelManager.getModelPath(_defaultModelName);
       LogByCommon.d('模型路径: $modelPath');
 
+      final llamaService = ref.read(llamaServiceProvider);
+
       // 同一模型已加载则跳过
-      if (!_llamaService.isLoaded || _llamaService.loadedModelPath != modelPath) {
-        await _llamaService.loadModel(modelPath);
+      if (!llamaService.isLoaded || llamaService.loadedModelPath != modelPath) {
+        await llamaService.loadModel(modelPath);
         LogByCommon.d('模型加载成功');
       } else {
         LogByCommon.d('模型已加载，跳过重复加载');
@@ -93,7 +96,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
 
       if (mounted) {
         final sessionManager = ChatSessionManager(
-          llamaService: _llamaService,
+          llamaService: llamaService,
         );
         await sessionManager.init();
 
@@ -101,8 +104,11 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
           _navigatingToChat = true;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (_) => ChatPage(
-                sessionManager: sessionManager,
+              builder: (_) => ProviderScope(
+                overrides: [
+                  chatSessionManagerProvider.overrideWith((ref) => sessionManager),
+                ],
+                child: const ChatPage(),
               ),
             ),
           );
@@ -187,7 +193,8 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
       if (importedPath != null && mounted) {
         LogByCommon.d('模型导入成功: $importedPath');
         // 导入新模型后，释放旧模型上下文，下次点击"开始聊天"时重新加载
-        await _llamaService.unloadModel();
+        final llamaService = ref.read(llamaServiceProvider);
+        await llamaService.unloadModel();
         setState(() {
           _isImporting = false;
           _hasModel = true;

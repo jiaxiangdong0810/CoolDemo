@@ -2,6 +2,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'native/event_channel.dart';
 import 'native/user_channel.dart';
@@ -12,11 +13,17 @@ import 'pages/agreement_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/model_setup_page.dart';
 import 'pages/settings_page.dart';
+import 'providers/chat_providers.dart';
+import 'services/chat_session_manager.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   EventApi.setUp(EventReceiver());
-  runApp(MyApp(initialRoute: PlatformDispatcher.instance.defaultRouteName));
+  runApp(
+    ProviderScope(
+      child: MyApp(initialRoute: PlatformDispatcher.instance.defaultRouteName),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -47,11 +54,18 @@ class MyApp extends StatelessWidget {
             );
           case '/chat':
             final args = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              builder: (_) => ChatPage(
-                sessionManager: args?['sessionManager'],
-              ),
-            );
+            final sessionManager = args?['sessionManager'] as ChatSessionManager?;
+
+            Widget chatPage = const ChatPage();
+            if (sessionManager != null) {
+              chatPage = ProviderScope(
+                overrides: [
+                  chatSessionManagerProvider.overrideWith((ref) => sessionManager),
+                ],
+                child: chatPage,
+              );
+            }
+            return MaterialPageRoute(builder: (_) => chatPage);
           case '/second':
             return MaterialPageRoute(
               builder: (_) => const SecondFlutterPage(),
