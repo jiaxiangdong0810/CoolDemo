@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>本地 HTML Demo</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #202124;
+            background: #f7f8fa;
+        }
+
+        main {
+            padding: 28px 20px;
+        }
+
+        section {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 22px;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 8px 24px rgba(60, 64, 67, 0.12);
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 24px;
+        }
+
+        p {
+            line-height: 1.7;
+        }
+
+        button {
+            min-height: 44px;
+            padding: 0 18px;
+            border: 0;
+            border-radius: 8px;
+            color: #ffffff;
+            background: #1a73e8;
+            font-size: 15px;
+        }
+
+        .result {
+            margin-top: 18px;
+            padding: 14px;
+            border-radius: 8px;
+            background: #eef3fe;
+            color: #174ea6;
+        }
+    </style>
+    <script>
+        window.onNativeMessage = function(message) {
+            var result = document.getElementById("native-result");
+            result.textContent = message;
+            return "HTML 已收到: " + message;
+        };
+    </script>
+</head>
+<body>
+<main>
+    <section>
+        <h1>本地 HTML 页面</h1>
+        <p>这个页面来自 app assets，不需要网络请求。WebView 通过 loadDataWithBaseURL 加载内容，避免为本地文件开启 file 访问权限。</p>
+        <p>点击下面按钮会调用 NativeBridge，验证本地页面也可以走安全的 JS 通信包装。</p>
+        <button onclick="NativeBridge.postMessage('来自本地 HTML 的消息')">发送消息到原生</button>
+        <div id="native-result" class="result">等待原生调用 window.onNativeMessage(...)</div>
+    </section>
+</main>
+</body>
+</html>
