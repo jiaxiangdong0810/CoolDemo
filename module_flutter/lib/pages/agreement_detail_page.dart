@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 
 /// 协议详情页面 - 协议模块的子页面
 class AgreementDetailPage extends StatelessWidget {
-  const AgreementDetailPage({super.key});
+  final Map<String, Object?> routeParams;
+
+  const AgreementDetailPage({super.key, this.routeParams = const {}});
 
   @override
   Widget build(BuildContext context) {
+    final title = routeParams['title'] as String? ?? '协议详情';
+    final agreementId = routeParams['agreementId'] as String? ?? 'default';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('协议详情'),
+        title: Text(title),
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
       ),
@@ -18,13 +23,13 @@ class AgreementDetailPage extends StatelessWidget {
           children: [
             const Icon(Icons.article_outlined, size: 80, color: Colors.teal),
             const SizedBox(height: 20),
-            const Text(
-              '协议详情页面',
+            Text(
+              title,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '协议模块的子页面',
+            Text(
+              'agreementId: $agreementId',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 40),

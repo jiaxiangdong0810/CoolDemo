@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../hybrid/hybrid_route.dart';
+
 /// 协议页面 - 模块入口
 class AgreementPage extends StatelessWidget {
-  const AgreementPage({super.key});
+  final Map<String, Object?> routeParams;
+
+  const AgreementPage({super.key, this.routeParams = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -30,14 +34,27 @@ class AgreementPage extends StatelessWidget {
             const SizedBox(height: 40),
             ElevatedButton.icon(
               onPressed: () {
-                Navigator.of(context).pushNamed('/agreement_detail');
+                Navigator.of(context).pushNamed(
+                  HybridRoute.flutter(
+                    '/agreement_detail',
+                    params: {
+                      'agreementId': 'user_terms',
+                      'title': '用户协议详情',
+                      'source': 'agreement_page',
+                      'parentFlowId': routeParams['flowId'],
+                    },
+                  ).toJson(),
+                );
               },
               icon: const Icon(Icons.article),
               label: const Text('查看协议详情'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -47,9 +64,7 @@ class AgreementPage extends StatelessWidget {
               },
               icon: const Icon(Icons.arrow_back),
               label: const Text('返回原生'),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
+              style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
             ),
           ],
         ),

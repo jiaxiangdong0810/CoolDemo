@@ -36,6 +36,6 @@ void main() {
   ];
 
   for (final config in configs) {
-    runPigeon(options: config);
+    // runPigeon(options: config);
   }
 }

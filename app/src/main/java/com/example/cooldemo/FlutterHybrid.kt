@@ -19,8 +19,8 @@ import io.flutter.embedding.engine.dart.DartExecutor
  * FlutterHybrid.init(this)
  *
  * // 任意原生页面中打开 Flutter
- * val flow = FlowConfig(flowId = "ai_chat", initialRoute = "/model_setup")
- * startActivity(FlutterHybrid.open(this, flow))
+ * val route = HybridRouteRequest.flutter("/settings", mapOf("tab" to "account"))
+ * startActivity(FlutterHybrid.open(this, route))
  * ```
  */
 object FlutterHybrid {
@@ -43,7 +43,14 @@ object FlutterHybrid {
      * @return 启动 HybridFlutterActivity 的 Intent
      */
     fun open(context: Context, flow: FlowConfig): Intent {
-        return HybridFlutterActivity.createIntent(context, flow)
+        return open(context, flow.toRouteRequest())
+    }
+
+    /**
+     * 打开指定 Flutter 页面，入口参数使用统一 JSON 路由协议。
+     */
+    fun open(context: Context, route: HybridRouteRequest): Intent {
+        return HybridFlutterActivity.createIntent(context, route)
     }
 
     /**

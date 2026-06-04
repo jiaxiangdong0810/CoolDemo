@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../native/event_channel.dart';
@@ -12,7 +14,9 @@ import '../native/generated/api.g.dart';
 /// 2. 用户在 Flutter 侧修改设置后，通过 Pigeon 通知原生同步保存
 /// 3. 监听原生侧设置变更事件，实时更新 UI
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final Map<String, Object?> routeParams;
+
+  const SettingsPage({super.key, this.routeParams = const {}});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -21,9 +25,12 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _settingChannel = SettingChannel();
   final _eventReceiver = EventReceiver();
+  StreamSubscription<SettingChange>? _settingSubscription;
+  StreamSubscription<String>? _lifecycleSubscription;
 
   bool _loading = true;
   String? _error;
+  String _lastLifecycleState = 'waiting';
 
   // 设置值
   bool _notificationEnabled = true;
@@ -47,10 +54,16 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _listenEvents() {
-    _eventReceiver.settingStream.listen((change) {
+    _settingSubscription = _eventReceiver.settingStream.listen((change) {
       if (!mounted) return;
       setState(() {
         _applySetting(change.key, change.value);
+      });
+    });
+    _lifecycleSubscription = _eventReceiver.lifecycleStream.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _lastLifecycleState = state;
       });
     });
   }
@@ -111,14 +124,16 @@ class _SettingsPageState extends State<SettingsPage> {
       _applySetting(key, value);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
     }
   }
 
   Future<void> _updateUserInfo() async {
-    final nicknameController = TextEditingController(text: _userInfo?.nickname ?? '');
+    final nicknameController = TextEditingController(
+      text: _userInfo?.nickname ?? '',
+    );
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -157,14 +172,16 @@ class _SettingsPageState extends State<SettingsPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存失败: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
     }
   }
 
   @override
   void dispose() {
+    _settingSubscription?.cancel();
+    _lifecycleSubscription?.cancel();
     super.dispose();
   }
 
@@ -179,129 +196,132 @@ class _SettingsPageState extends State<SettingsPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text('加载失败: $_error'))
-              : ListView(
-                  children: [
-                    // 用户信息区（演示用户信息同步）
-                    _buildUserSection(),
-                    const Divider(),
+          ? Center(child: Text('加载失败: $_error'))
+          : ListView(
+              children: [
+                // 用户信息区（演示用户信息同步）
+                _buildUserSection(),
+                const Divider(),
 
-                    // 设备信息
-                    if (_deviceInfo != null) _buildDeviceSection(),
-                    const Divider(),
+                _buildRouteSection(),
+                const Divider(),
 
-                    // 通知设置
-                    SwitchListTile(
-                      secondary: const Icon(Icons.notifications),
-                      title: const Text('消息通知'),
-                      subtitle: const Text('接收推送消息'),
-                      value: _notificationEnabled,
-                      onChanged: (value) {
-                        setState(() => _notificationEnabled = value);
-                        _updateSetting('notification_enabled', value.toString());
-                      },
-                    ),
+                // 设备信息
+                if (_deviceInfo != null) _buildDeviceSection(),
+                const Divider(),
 
-                    // 深色模式
-                    ListTile(
-                      leading: const Icon(Icons.dark_mode),
-                      title: const Text('深色模式'),
-                      subtitle: Text(_darkModeLabel(_darkMode)),
-                      trailing: DropdownButton<String>(
-                        value: _darkMode,
-                        underline: const SizedBox(),
-                        items: const [
-                          DropdownMenuItem(value: 'light', child: Text('浅色')),
-                          DropdownMenuItem(value: 'dark', child: Text('深色')),
-                          DropdownMenuItem(value: 'system', child: Text('跟随系统')),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _darkMode = value);
-                          _updateSetting('dark_mode', value);
-                        },
-                      ),
-                    ),
-
-                    // 语言
-                    ListTile(
-                      leading: const Icon(Icons.language),
-                      title: const Text('语言'),
-                      subtitle: Text(_languageLabel(_language)),
-                      trailing: DropdownButton<String>(
-                        value: _language,
-                        underline: const SizedBox(),
-                        items: const [
-                          DropdownMenuItem(value: 'zh', child: Text('简体中文')),
-                          DropdownMenuItem(value: 'en', child: Text('English')),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _language = value);
-                          _updateSetting('language', value);
-                        },
-                      ),
-                    ),
-
-                    // 字体大小
-                    ListTile(
-                      leading: const Icon(Icons.format_size),
-                      title: const Text('字体大小'),
-                      subtitle: Text(_fontSizeLabel(_fontSize)),
-                      trailing: DropdownButton<String>(
-                        value: _fontSize,
-                        underline: const SizedBox(),
-                        items: const [
-                          DropdownMenuItem(value: 'small', child: Text('小')),
-                          DropdownMenuItem(value: 'medium', child: Text('中')),
-                          DropdownMenuItem(value: 'large', child: Text('大')),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() => _fontSize = value);
-                          _updateSetting('font_size', value);
-                        },
-                      ),
-                    ),
-
-                    // 自动播放
-                    SwitchListTile(
-                      secondary: const Icon(Icons.play_circle),
-                      title: const Text('自动播放'),
-                      subtitle: const Text('进入页面自动播放内容'),
-                      value: _autoPlay,
-                      onChanged: (value) {
-                        setState(() => _autoPlay = value);
-                        _updateSetting('auto_play', value.toString());
-                      },
-                    ),
-
-                    const Divider(),
-
-                    // 关于
-                    ListTile(
-                      leading: const Icon(Icons.info_outline),
-                      title: const Text('关于'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        Navigator.of(context).pushNamed('/about');
-                      },
-                    ),
-
-                    const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'Pigeon 通信框架演示',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey,
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                // 通知设置
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications),
+                  title: const Text('消息通知'),
+                  subtitle: const Text('接收推送消息'),
+                  value: _notificationEnabled,
+                  onChanged: (value) {
+                    setState(() => _notificationEnabled = value);
+                    _updateSetting('notification_enabled', value.toString());
+                  },
                 ),
+
+                // 深色模式
+                ListTile(
+                  leading: const Icon(Icons.dark_mode),
+                  title: const Text('深色模式'),
+                  subtitle: Text(_darkModeLabel(_darkMode)),
+                  trailing: DropdownButton<String>(
+                    value: _darkMode,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'light', child: Text('浅色')),
+                      DropdownMenuItem(value: 'dark', child: Text('深色')),
+                      DropdownMenuItem(value: 'system', child: Text('跟随系统')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _darkMode = value);
+                      _updateSetting('dark_mode', value);
+                    },
+                  ),
+                ),
+
+                // 语言
+                ListTile(
+                  leading: const Icon(Icons.language),
+                  title: const Text('语言'),
+                  subtitle: Text(_languageLabel(_language)),
+                  trailing: DropdownButton<String>(
+                    value: _language,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'zh', child: Text('简体中文')),
+                      DropdownMenuItem(value: 'en', child: Text('English')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _language = value);
+                      _updateSetting('language', value);
+                    },
+                  ),
+                ),
+
+                // 字体大小
+                ListTile(
+                  leading: const Icon(Icons.format_size),
+                  title: const Text('字体大小'),
+                  subtitle: Text(_fontSizeLabel(_fontSize)),
+                  trailing: DropdownButton<String>(
+                    value: _fontSize,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'small', child: Text('小')),
+                      DropdownMenuItem(value: 'medium', child: Text('中')),
+                      DropdownMenuItem(value: 'large', child: Text('大')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _fontSize = value);
+                      _updateSetting('font_size', value);
+                    },
+                  ),
+                ),
+
+                // 自动播放
+                SwitchListTile(
+                  secondary: const Icon(Icons.play_circle),
+                  title: const Text('自动播放'),
+                  subtitle: const Text('进入页面自动播放内容'),
+                  value: _autoPlay,
+                  onChanged: (value) {
+                    setState(() => _autoPlay = value);
+                    _updateSetting('auto_play', value.toString());
+                  },
+                ),
+
+                const Divider(),
+
+                // 关于
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('关于'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).pushNamed('/about');
+                  },
+                ),
+
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Pigeon 通信框架演示',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
     );
   }
 
@@ -314,9 +334,9 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Text(
             '用户信息',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Colors.indigo,
-                  fontWeight: FontWeight.bold,
-                ),
+              color: Colors.indigo,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         ListTile(
@@ -366,9 +386,9 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Text(
             '设备信息',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Colors.indigo,
-                  fontWeight: FontWeight.bold,
-                ),
+              color: Colors.indigo,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         ListTile(
@@ -391,6 +411,46 @@ class _SettingsPageState extends State<SettingsPage> {
           title: const Text('App 版本'),
           trailing: Text(d.appVersion),
         ),
+      ],
+    );
+  }
+
+  Widget _buildRouteSection() {
+    final entries = widget.routeParams.entries.toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            '路由参数',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.indigo,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.sync),
+          title: const Text('容器生命周期'),
+          subtitle: Text(_lastLifecycleState),
+        ),
+        if (entries.isEmpty)
+          const ListTile(
+            dense: true,
+            leading: Icon(Icons.data_object),
+            title: Text('暂无透传参数'),
+          )
+        else
+          ...entries.map(
+            (entry) => ListTile(
+              dense: true,
+              leading: const Icon(Icons.data_object),
+              title: Text(entry.key),
+              subtitle: Text('${entry.value}'),
+            ),
+          ),
       ],
     );
   }

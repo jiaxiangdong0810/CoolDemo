@@ -4,17 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'hybrid/hybrid_route.dart';
 import 'native/event_channel.dart';
 import 'native/user_channel.dart';
 import 'native/generated/api.g.dart';
 import 'pages/about_page.dart';
 import 'pages/agreement_detail_page.dart';
 import 'pages/agreement_page.dart';
-import 'pages/chat_page.dart';
-import 'pages/model_setup_page.dart';
+import 'pages/navigation_test_pages.dart';
 import 'pages/settings_page.dart';
-import 'providers/chat_providers.dart';
-import 'services/chat_session_manager.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,60 +37,82 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      // 关键：使用 initialRoute + onGenerateRoute，不再同时设置 home
-      // 避免 Navigator 栈中重复压入同一页面（home + initialRoute 冲突）
+      // 只把原生指定的入口页放入初始栈，避免先压入 "/" 再进入目标页。
       initialRoute: initialRoute,
-      onGenerateRoute: (settings) {
-        switch (settings.name) {
-          case '/':
-            return MaterialPageRoute(
-              builder: (_) => const FirstFlutterPage(),
-            );
-          case '/model_setup':
-            return MaterialPageRoute(
-              builder: (_) => const ModelSetupPage(),
-            );
-          case '/chat':
-            final args = settings.arguments as Map<String, dynamic>?;
-            final sessionManager = args?['sessionManager'] as ChatSessionManager?;
-
-            Widget chatPage = const ChatPage();
-            if (sessionManager != null) {
-              chatPage = ProviderScope(
-                overrides: [
-                  chatSessionManagerProvider.overrideWith((ref) => sessionManager),
-                ],
-                child: chatPage,
-              );
-            }
-            return MaterialPageRoute(builder: (_) => chatPage);
-          case '/second':
-            return MaterialPageRoute(
-              builder: (_) => const SecondFlutterPage(),
-            );
-          case '/settings':
-            return MaterialPageRoute(
-              builder: (_) => const SettingsPage(),
-            );
-          case '/about':
-            return MaterialPageRoute(
-              builder: (_) => const AboutPage(),
-            );
-          case '/agreement':
-            return MaterialPageRoute(
-              builder: (_) => const AgreementPage(),
-            );
-          case '/agreement_detail':
-            return MaterialPageRoute(
-              builder: (_) => const AgreementDetailPage(),
-            );
-          default:
-            return MaterialPageRoute(
-              builder: (_) => const FirstFlutterPage(),
-            );
-        }
+      onGenerateInitialRoutes: (initialRoute) {
+        return [_buildRoute(RouteSettings(name: initialRoute))];
       },
+      onGenerateRoute: _buildRoute,
     );
+  }
+
+  Route<dynamic> _buildRoute(RouteSettings settings) {
+    final route = HybridRoute.parse(settings.name);
+    switch (route.path) {
+      case '/':
+        return MaterialPageRoute(builder: (_) => const FirstFlutterPage());
+      case '/second':
+        return MaterialPageRoute(builder: (_) => const SecondFlutterPage());
+      case '/settings':
+        return MaterialPageRoute(
+          builder: (_) => SettingsPage(routeParams: route.params),
+        );
+      case '/about':
+        return MaterialPageRoute(builder: (_) => const AboutPage());
+      case '/agreement':
+        return MaterialPageRoute(
+          builder: (_) => AgreementPage(routeParams: route.params),
+        );
+      case '/agreement_detail':
+        return MaterialPageRoute(
+          builder: (_) => AgreementDetailPage(routeParams: route.params),
+        );
+      case '/nav_case_1':
+        return MaterialPageRoute(
+          builder: (_) => NavigationTestPage(
+            title: route.params['title'] as String? ?? '场景 1：Flutter 页面',
+            chain: route.params['chain'] as String? ?? '原生 -> Flutter',
+            action: NavigationTestAction.none,
+          ),
+        );
+      case '/nav_case_2':
+        return MaterialPageRoute(
+          builder: (_) => NavigationTestPage(
+            title: route.params['title'] as String? ?? '场景 2：Flutter 第 1 页',
+            chain:
+                route.params['chain'] as String? ?? '原生 -> Flutter -> Flutter',
+            action: NavigationTestAction.flutter,
+          ),
+        );
+      case '/nav_case_3':
+        return MaterialPageRoute(
+          builder: (_) => NavigationTestPage(
+            title: route.params['title'] as String? ?? '场景 3：Flutter 页面',
+            chain: route.params['chain'] as String? ?? '原生 -> Flutter -> 原生',
+            action: NavigationTestAction.native,
+          ),
+        );
+      case '/nav_case_4':
+        return MaterialPageRoute(
+          builder: (_) => NavigationTestPage(
+            title: route.params['title'] as String? ?? '场景 4：Flutter 第 1 页',
+            chain:
+                route.params['chain'] as String? ??
+                '原生 -> Flutter -> Flutter -> 原生',
+            action: NavigationTestAction.flutterThenNative,
+          ),
+        );
+      case '/nav_case_native_to_flutter':
+        return MaterialPageRoute(
+          builder: (_) => NavigationTestPage(
+            title: route.params['title'] as String? ?? '原生继续打开的 Flutter 页',
+            chain: route.params['chain'] as String? ?? '原生 -> Flutter',
+            action: NavigationTestAction.none,
+          ),
+        );
+      default:
+        return MaterialPageRoute(builder: (_) => const FirstFlutterPage());
+    }
   }
 }
 
@@ -177,23 +197,6 @@ class _FirstFlutterPageState extends State<FirstFlutterPage> {
               _buildUserCard(),
               const SizedBox(height: 24),
 
-              // AI 聊天入口
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ModelSetupPage(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.chat_bubble),
-                label: const Text('本地 AI 聊天'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () {
@@ -213,9 +216,7 @@ class _FirstFlutterPageState extends State<FirstFlutterPage> {
                 },
                 icon: const Icon(Icons.close),
                 label: const Text('关闭页面（返回原生）'),
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                ),
+                style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
               ),
             ],
           ),
@@ -301,7 +302,10 @@ class SecondFlutterPage extends StatelessWidget {
 
   Future<void> _openNativePage() async {
     try {
-      await _channel.invokeMethod('openNativeSecondPage');
+      await _channel.invokeMethod('openNativeHopPage', {
+        'title': '原生第二个页面',
+        'chain': 'Flutter 第 2 页 -> 原生',
+      });
     } catch (e) {
       debugPrint('打开原生页面失败: $e');
     }

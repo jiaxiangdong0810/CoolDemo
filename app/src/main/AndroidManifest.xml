@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".MyApplication"
@@ -30,6 +31,14 @@
         <activity
             android:name=".FeaturesActivity"
             android:exported="true"
+            android:theme="@style/Theme.CoolDemo" />
+        <activity
+            android:name=".NativeHopActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CoolDemo" />
+        <activity
+            android:name=".webview.SafeWebViewActivity"
+            android:exported="false"
             android:theme="@style/Theme.CoolDemo" />
         <activity
             android:name=".HybridFlutterActivity"

@@ -8,6 +8,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import com.example.cooldemo.native.UserApiImpl
 import com.example.cooldemo.native.SettingApiImpl
+import com.example.cooldemo.pigeon.EventApi
 import com.example.cooldemo.pigeon.UserApi
 import com.example.cooldemo.pigeon.SettingApi
 
@@ -26,17 +27,18 @@ class HybridFlutterActivity : FlutterActivity() {
         const val EXTRA_INITIAL_ROUTE = "extra_initial_route"
 
         /**
-         * 创建打开指定 Flow 的 Intent。
+         * 创建打开指定 Flutter JSON 路由的 Intent。
          */
-        fun createIntent(context: Context, flow: FlowConfig): Intent {
+        fun createIntent(context: Context, route: HybridRouteRequest): Intent {
             return Intent(context, HybridFlutterActivity::class.java).apply {
-                putExtra(EXTRA_INITIAL_ROUTE, flow.initialRoute)
+                putExtra(EXTRA_INITIAL_ROUTE, route.toJson())
             }
         }
     }
 
     private var engine: FlutterEngine? = null
     private var methodChannel: MethodChannel? = null
+    private var eventApi: EventApi? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +49,7 @@ class HybridFlutterActivity : FlutterActivity() {
             // Pigeon API 注册
             UserApi.setUp(messenger, UserApiImpl(this))
             SettingApi.setUp(messenger, SettingApiImpl(this))
+            eventApi = EventApi(messenger)
 
             // 保留原有 MethodChannel（暂不迁移）
             methodChannel = MethodChannel(
@@ -55,10 +58,17 @@ class HybridFlutterActivity : FlutterActivity() {
             )
             methodChannel?.setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "openNativeHopPage" -> {
+                        val title = call.argument<String>("title") ?: "原生页面"
+                        val chain = call.argument<String>("chain") ?: "Flutter -> 原生"
+                        startActivity(NativeHopActivity.createIntent(this, title, chain))
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }
         }
+        dispatchLifecycle("container_create")
     }
 
     /**
@@ -78,13 +88,40 @@ class HybridFlutterActivity : FlutterActivity() {
      */
     override fun shouldAttachEngineToActivity(): Boolean = true
 
+    override fun onStart() {
+        super.onStart()
+        dispatchLifecycle("container_start")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        dispatchLifecycle("container_resume")
+    }
+
+    override fun onPause() {
+        dispatchLifecycle("container_pause")
+        super.onPause()
+    }
+
+    override fun onStop() {
+        dispatchLifecycle("container_stop")
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        dispatchLifecycle("container_destroy")
         super.onDestroy()
         // 只有 Activity 真正 finish 时才销毁 Engine
         // 配置变更（如旋转）时 isFinishing 为 false，Engine 得以保留复用
         if (isFinishing) {
             engine?.destroy()
             engine = null
+        }
+    }
+
+    private fun dispatchLifecycle(state: String) {
+        eventApi?.onAppLifecycleChanged(state) {
+            // Demo 中只演示生命周期同步，发送失败不影响容器主流程。
         }
     }
 }

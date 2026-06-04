@@ -10,5 +10,14 @@ data class FlowConfig(
     /** 流唯一标识，用于 Engine 管理和调试 */
     val flowId: String,
     /** Flutter 入口路由，对应 Dart 层的 onGenerateRoute */
-    val initialRoute: String
-)
+    val initialRoute: String,
+    /** 页面参数，最终会进入统一 JSON 路由协议 */
+    val params: Map<String, Any?> = emptyMap()
+) {
+    fun toRouteRequest(): HybridRouteRequest {
+        return HybridRouteRequest.flutter(
+            path = initialRoute,
+            params = params + ("flowId" to flowId)
+        )
+    }
+}

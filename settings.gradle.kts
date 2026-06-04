@@ -29,3 +29,4 @@ rootProject.name = "CoolDemo"
 include(":app")
 
 apply(from = file("module_flutter/.android/include_flutter.groovy"))
+//include(":originalModule")
